@@ -2,9 +2,11 @@ name: Terraform CI/CD
 
 on:
   push:
+    branches:
+      - '*feature/*'
+      - 'main'
     paths:
-      - 'dev/*.tf'
-      - 'prod/*.tf'
+      - '**/*.tf'
 
 jobs:
   detect-changes:
@@ -25,7 +27,7 @@ jobs:
     - name: Set matrix for next job
       id: set-matrix
       run: |
-        echo "::set-output name=matrix::{\"include\": [$(echo '"$changed_folders"' | sed 's/ /", "/g' | awk '{print "{\"environment\":\""$1"\"}"}')]}"
+        echo "::set-output name=matrix::{\"include\": [$(echo "$changed_folders" | sed 's/ /", "/g' | awk '{print "{\"environment\":\""$1"\"}"}')]}"
 
   terraform:
     needs: detect-changes
@@ -46,11 +48,11 @@ jobs:
         terraform_version: 1.0.0
 
     - name: Terraform Init
-      run: terraform init
+      run: terraform init -backend-config=dev/backend-config.hcl
 
     - name: Terraform Plan
-      run: terraform plan
+      run: terraform plan -var-file="dev/terraform.tfvars"
 
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      run: terraform apply -auto-approve
+      if: github.ref == 'refs/heads/main'
+      run: terraform apply -var-file="dev/terraform.tfvars" -auto-approve
