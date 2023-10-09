@@ -46,11 +46,11 @@ jobs:
         terraform_version: 1.4.7
 
     - name: Terraform Init
-      run: terraform init -backend-config=dev/backend-config.hcl
+      run: terraform init -backend-config=${{ matrix.environment }}/backend-config.hcl
 
     - name: Terraform Plan
-      run: terraform plan -var-file="dev/terraform.tfvars"
+      run: terraform plan -var-file="${{ matrix.environment }}/terraform.tfvars"
 
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main'
-      run: terraform apply -var-file="dev/terraform.tfvars" -auto-approve
+      run: terraform apply -var-file="${{ matrix.environment }}/terraform.tfvars" -auto-approve
