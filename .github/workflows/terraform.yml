@@ -6,7 +6,7 @@ on:
       - 'feature/**'
 
     paths:
-      - '**/*.tf'
+      - 'tf-rg/*.tf'
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
