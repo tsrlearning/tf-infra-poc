@@ -1,57 +1,65 @@
-name: Terraform CI/CD
+name: Infra cicd
+
 on:
   pull_request:
-    branches:    
+    branches:
       - main
       - 'feature/**'
-
     paths:
-      - '**/*.tf'
+      - 'tf-rg/*.tf'
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
-    - name: Check changed directories
-      id: get-changed-dir
-      run: |
-        changed_folders=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '.tf' | sed -E 's@(.+)/.*@\1@' | uniq)
-        echo "Changed folders: $changed_folders"
-        echo "::set-output name=dirs::$changed_folders"
+      - name: Detect Changed Terraform Directories
+        id: get-changed-dir
+        run: |
+          changed_folders=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '.tf' | sed -E 's@(.+)/.*@\1@' | uniq)
+          echo "Changed folders: $changed_folders"
+          echo "changed_folders=$changed_folders" >> $GITHUB_ENV
 
-    - name: Set matrix for next job
-      id: set-matrix
-      run: |
-        echo "::set-output name=matrix::{\"include\": [$(echo "$changed_folders" | sed 's/ /", "/g' | awk '{print "{\"environment\":\""$1"\"}"}')]}"
+      - name: Prepare Matrix for Terraform Job
+        id: set-matrix
+        run: |
+          matrix_data=$(echo "$changed_folders" | sed 's/ /", "/g' | awk '{print "{\"environment\":\""$1"\"}"}')
+          echo "::set-output name=matrix::[ $matrix_data ]"
 
   terraform:
     needs: detect-changes
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{fromJson(needs.detect-changes.outputs.matrix)}}
+      matrix: ${{fromJson(steps.set-matrix.outputs.matrix)}}
     defaults:
       run:
         working-directory: ${{ matrix.environment }}
-
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v1
-      with:
-        terraform_version: 1.0.0
+      - name: Authenticate with Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Terraform Init
-      run: terraform init -backend-config=dev/backend-config.hcl
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.4.7
 
-    - name: Terraform Plan
-      run: terraform plan -var-file="dev/terraform.tfvars"
+      - name: Terraform Initialization
+        run: terraform init -backend-config=${{ matrix.environment }}/backend-config.hcl
 
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main'
-      run: terraform apply -var-file="dev/terraform.tfvars" -auto-approve
+      - name: Terraform Plan
+        run: terraform plan -var-file="${{ matrix.environment }}/terraform.tfvars"
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -var-file="${{ matrix.environment }}/terraform.tfvars" -auto-approve
