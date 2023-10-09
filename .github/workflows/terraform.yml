@@ -1,10 +1,9 @@
-name: Terraform CI/CD
+name: Infra cicd
 on:
   pull_request:
     branches:    
       - main
       - 'feature/**'
-
     paths:
       - 'tf-rg/*.tf'
 jobs:
@@ -21,7 +20,7 @@ jobs:
       run: |
         changed_folders=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '.tf' | sed -E 's@(.+)/.*@\1@' | uniq)
         echo "Changed folders: $changed_folders"
-        echo "::set-output name=dirs::$changed_folders"
+        echo "dirs=$changed_folders" >> $GITHUB_ENV
 
     - name: Set matrix for next job
       id: set-matrix
@@ -44,7 +43,7 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
       with:
-        terraform_version: 1.0.0
+        terraform_version: 1.4.7
 
     - name: Terraform Init
       run: terraform init -backend-config=dev/backend-config.hcl
